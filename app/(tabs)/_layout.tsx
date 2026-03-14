@@ -37,9 +37,9 @@ export default function TabLayout() {
         <Tabs.Screen
           name="social"
           options={{
-            title: "Social",
+            title: "Community",
             tabBarIcon: ({ color, size }) => (
-              <Ionicons name="people-outline" size={size} color={color} />
+              <Ionicons name="globe-outline" size={size} color={color} />
             ),
           }}
         />

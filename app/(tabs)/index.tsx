@@ -5,6 +5,7 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
+  TextInput,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,14 +24,30 @@ export default function TimerScreen() {
   const { nickname } = useNickname();
   const { activeFast, pastFasts, startFast, endFast, logMood, loading } = useFasting();
   const [selectedPreset, setSelectedPreset] = useState(1);
+  const [customHours, setCustomHours] = useState("");
+  const [customMinutes, setCustomMinutes] = useState("");
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const isCustom = FAST_PRESETS[selectedPreset].label === "Custom";
+
+  const getTargetHours = (): number => {
+    if (!isCustom) return FAST_PRESETS[selectedPreset].hours;
+    const h = parseFloat(customHours) || 0;
+    const m = parseFloat(customMinutes) || 0;
+    return h + m / 60;
+  };
+
   const handleStartFast = async () => {
+    const target = getTargetHours();
+    if (isCustom && (target < 1 / 60 || target > 100)) {
+      setError("Custom fast must be between 1 minute and 100 hours");
+      return;
+    }
     setStarting(true);
     setError(null);
     try {
-      await startFast(FAST_PRESETS[selectedPreset].hours);
+      await startFast(Math.round(target * 100) / 100);
     } catch (e: any) {
       const msg = e.message ?? "Failed to start fast";
       setError(msg);
@@ -140,6 +157,40 @@ export default function TimerScreen() {
             ))}
           </View>
 
+          {isCustom && (
+            <View style={styles.customInputCard}>
+              <Text style={styles.customTitle}>Set your duration</Text>
+              <View style={styles.customRow}>
+                <View style={styles.customField}>
+                  <TextInput
+                    style={styles.customInput}
+                    value={customHours}
+                    onChangeText={(t) => setCustomHours(t.replace(/[^0-9]/g, ""))}
+                    placeholder="0"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="numeric"
+                    maxLength={3}
+                  />
+                  <Text style={styles.customLabel}>hours</Text>
+                </View>
+                <Text style={styles.customSeparator}>:</Text>
+                <View style={styles.customField}>
+                  <TextInput
+                    style={styles.customInput}
+                    value={customMinutes}
+                    onChangeText={(t) => setCustomMinutes(t.replace(/[^0-9]/g, ""))}
+                    placeholder="00"
+                    placeholderTextColor={colors.textMuted}
+                    keyboardType="numeric"
+                    maxLength={2}
+                  />
+                  <Text style={styles.customLabel}>min</Text>
+                </View>
+              </View>
+              <Text style={styles.customHint}>1 min – 100 hours</Text>
+            </View>
+          )}
+
           {error && (
             <View style={styles.errorBanner}>
               <Text style={styles.errorText}>{error}</Text>
@@ -147,9 +198,16 @@ export default function TimerScreen() {
           )}
 
           <Button
-            title={`Start ${FAST_PRESETS[selectedPreset].label} Fast`}
+            title={
+              isCustom
+                ? getTargetHours() > 0
+                  ? `Start ${customHours || "0"}h ${customMinutes || "0"}m Fast`
+                  : "Enter a duration above"
+                : `Start ${FAST_PRESETS[selectedPreset].label} Fast`
+            }
             onPress={handleStartFast}
             loading={starting}
+            disabled={isCustom && getTargetHours() < 1 / 60}
             fullWidth
             size="lg"
           />
@@ -261,6 +319,57 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  customInputCard: {
+    backgroundColor: colors.card,
+    borderRadius: borderRadius.lg,
+    borderWidth: 1,
+    borderColor: colors.primary + "44",
+    padding: spacing.lg,
+    marginBottom: spacing.lg,
+    alignItems: "center",
+  },
+  customTitle: {
+    fontSize: fontSize.md,
+    fontWeight: "600",
+    color: colors.textPrimary,
+    marginBottom: spacing.md,
+  },
+  customRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: spacing.sm,
+  },
+  customField: {
+    alignItems: "center",
+  },
+  customInput: {
+    backgroundColor: colors.inputBackground,
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.inputBorder,
+    width: 80,
+    height: 56,
+    textAlign: "center",
+    color: colors.textPrimary,
+    fontSize: fontSize.xxl,
+    fontWeight: "700",
+  },
+  customLabel: {
+    fontSize: fontSize.xs,
+    color: colors.textSecondary,
+    marginTop: spacing.xs,
+  },
+  customSeparator: {
+    fontSize: fontSize.xxl,
+    fontWeight: "300",
+    color: colors.textMuted,
+    marginBottom: spacing.md,
+  },
+  customHint: {
+    fontSize: fontSize.xs,
+    color: colors.textMuted,
+    marginTop: spacing.md,
   },
   errorBanner: {
     backgroundColor: colors.error + "20",

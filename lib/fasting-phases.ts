@@ -86,7 +86,7 @@ export const FAST_PRESETS = [
   { label: "16:8", hours: 16, description: "Popular" },
   { label: "18:6", hours: 18, description: "Intermediate" },
   { label: "20:4", hours: 20, description: "Warrior" },
-  { label: "OMAD", hours: 23, description: "One Meal a Day" },
+  { label: "Custom", hours: 0, description: "Set Your Own" },
   { label: "36h", hours: 36, description: "Extended" },
   { label: "48h", hours: 48, description: "Extended+" },
   { label: "72h", hours: 72, description: "Autophagy" },
