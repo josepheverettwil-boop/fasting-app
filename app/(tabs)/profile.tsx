@@ -4,18 +4,18 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useAuth } from "@/contexts/AuthContext";
+import { router } from "expo-router";
+import { useNickname } from "@/contexts/NicknameContext";
 import { useFasting } from "@/contexts/FastingContext";
 import { Button } from "@/components/Button";
 import { colors, spacing, fontSize, borderRadius } from "@/lib/theme";
 
 export default function ProfileScreen() {
-  const { profile, signOut } = useAuth();
+  const { nickname, clearNickname } = useNickname();
   const { pastFasts } = useFasting();
 
   const totalFasts = pastFasts.length;
@@ -42,11 +42,9 @@ export default function ProfileScreen() {
     return Math.max(max, hours);
   }, 0);
 
-  const handleSignOut = () => {
-    Alert.alert("Sign Out", "Are you sure?", [
-      { text: "Cancel", style: "cancel" },
-      { text: "Sign Out", style: "destructive", onPress: signOut },
-    ]);
+  const handleChangeNickname = async () => {
+    await clearNickname();
+    router.replace("/welcome");
   };
 
   return (
@@ -62,16 +60,10 @@ export default function ProfileScreen() {
           <View style={styles.profileHeader}>
             <View style={styles.avatarLarge}>
               <Text style={styles.avatarLargeText}>
-                {(profile?.display_name ?? profile?.username ?? "?")[0].toUpperCase()}
+                {(nickname ?? "?")[0].toUpperCase()}
               </Text>
             </View>
-            <Text style={styles.displayName}>
-              {profile?.display_name ?? profile?.username}
-            </Text>
-            <Text style={styles.usernameText}>@{profile?.username}</Text>
-            {profile?.bio && (
-              <Text style={styles.bio}>{profile.bio}</Text>
-            )}
+            <Text style={styles.displayName}>{nickname}</Text>
           </View>
 
           <View style={styles.statsGrid}>
@@ -92,15 +84,15 @@ export default function ProfileScreen() {
             </View>
             <View style={styles.statCard}>
               <Ionicons name="rocket-outline" size={24} color={colors.accent} />
-              <Text style={styles.statValue}>{longestFast.toFixed(1)}h</Text>
+              <Text style={styles.statValue}>{longestFast > 0 ? `${longestFast.toFixed(1)}h` : "—"}</Text>
               <Text style={styles.statLabel}>Longest Fast</Text>
             </View>
           </View>
 
           <View style={styles.section}>
             <Button
-              title="Sign Out"
-              onPress={handleSignOut}
+              title="Change Nickname"
+              onPress={handleChangeNickname}
               variant="outline"
               fullWidth
             />
@@ -139,18 +131,6 @@ const styles = StyleSheet.create({
     fontSize: fontSize.xl,
     fontWeight: "800",
     color: colors.textPrimary,
-  },
-  usernameText: {
-    fontSize: fontSize.md,
-    color: colors.textSecondary,
-    marginTop: 2,
-  },
-  bio: {
-    fontSize: fontSize.sm,
-    color: colors.textSecondary,
-    textAlign: "center",
-    marginTop: spacing.sm,
-    lineHeight: 20,
   },
   statsGrid: {
     flexDirection: "row",

@@ -1,12 +1,11 @@
-import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { AuthProvider } from "@/contexts/AuthContext";
+import { NicknameProvider } from "@/contexts/NicknameContext";
 import { colors } from "@/lib/theme";
 
 export default function RootLayout() {
   return (
-    <AuthProvider>
+    <NicknameProvider>
       <StatusBar style="light" />
       <Stack
         screenOptions={{
@@ -15,6 +14,6 @@ export default function RootLayout() {
           animation: "slide_from_right",
         }}
       />
-    </AuthProvider>
+    </NicknameProvider>
   );
 }

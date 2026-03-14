@@ -5,33 +5,43 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { router } from "expo-router";
+import { useNickname } from "@/contexts/NicknameContext";
 import { useFasting } from "@/contexts/FastingContext";
 import { CircularTimer } from "@/components/CircularTimer";
 import { MoodTracker } from "@/components/MoodTracker";
 import { Button } from "@/components/Button";
 import { FAST_PRESETS } from "@/lib/fasting-phases";
+import { showAlert } from "@/lib/alert";
 import { colors, spacing, fontSize, borderRadius } from "@/lib/theme";
 import { formatDistanceToNow } from "date-fns";
 
 export default function TimerScreen() {
+  const { nickname } = useNickname();
   const { activeFast, pastFasts, startFast, endFast, logMood, loading } = useFasting();
   const [selectedPreset, setSelectedPreset] = useState(1);
+  const [starting, setStarting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleStartFast = async () => {
+    setStarting(true);
+    setError(null);
     try {
       await startFast(FAST_PRESETS[selectedPreset].hours);
     } catch (e: any) {
-      Alert.alert("Error", e.message);
+      const msg = e.message ?? "Failed to start fast";
+      setError(msg);
+      showAlert("Error", msg);
+    } finally {
+      setStarting(false);
     }
   };
 
   const handleEndFast = () => {
-    Alert.alert(
+    showAlert(
       "End Fast",
       "Are you sure you want to end your current fast?",
       [
@@ -62,7 +72,9 @@ export default function TimerScreen() {
             contentContainerStyle={styles.activeContent}
             showsVerticalScrollIndicator={false}
           >
-            <Text style={styles.screenTitle}>Your Fast</Text>
+            <Text style={styles.greeting}>
+              Keep going, {nickname}
+            </Text>
 
             <CircularTimer
               startedAt={activeFast.started_at}
@@ -97,6 +109,7 @@ export default function TimerScreen() {
           contentContainerStyle={styles.startContent}
           showsVerticalScrollIndicator={false}
         >
+          <Text style={styles.greeting}>Hey, {nickname}</Text>
           <Text style={styles.screenTitle}>Start a Fast</Text>
           <Text style={styles.screenSubtitle}>
             Choose your fasting window
@@ -127,10 +140,16 @@ export default function TimerScreen() {
             ))}
           </View>
 
+          {error && (
+            <View style={styles.errorBanner}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          )}
+
           <Button
             title={`Start ${FAST_PRESETS[selectedPreset].label} Fast`}
             onPress={handleStartFast}
-            loading={loading}
+            loading={starting}
             fullWidth
             size="lg"
           />
@@ -187,6 +206,11 @@ const styles = StyleSheet.create({
     padding: spacing.lg,
     paddingBottom: spacing.xxl,
   },
+  greeting: {
+    fontSize: fontSize.md,
+    color: colors.textSecondary,
+    marginBottom: spacing.xs,
+  },
   screenTitle: {
     fontSize: fontSize.xxl,
     fontWeight: "800",
@@ -237,6 +261,19 @@ const styles = StyleSheet.create({
     fontSize: fontSize.sm,
     color: colors.textMuted,
     marginTop: spacing.xs,
+  },
+  errorBanner: {
+    backgroundColor: colors.error + "20",
+    borderRadius: borderRadius.md,
+    borderWidth: 1,
+    borderColor: colors.error + "44",
+    padding: spacing.md,
+    marginBottom: spacing.md,
+  },
+  errorText: {
+    color: colors.error,
+    fontSize: fontSize.sm,
+    textAlign: "center",
   },
   historySection: {
     marginTop: spacing.xl,

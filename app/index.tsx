@@ -1,10 +1,10 @@
 import { Redirect } from "expo-router";
 import { View, ActivityIndicator, StyleSheet } from "react-native";
-import { useAuth } from "@/contexts/AuthContext";
+import { useNickname } from "@/contexts/NicknameContext";
 import { colors } from "@/lib/theme";
 
 export default function Index() {
-  const { session, loading } = useAuth();
+  const { nickname, loading } = useNickname();
 
   if (loading) {
     return (
@@ -14,8 +14,8 @@ export default function Index() {
     );
   }
 
-  if (!session) {
-    return <Redirect href="/auth/login" />;
+  if (!nickname) {
+    return <Redirect href="/welcome" />;
   }
 
   return <Redirect href="/(tabs)" />;

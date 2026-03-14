@@ -1,7 +1,9 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { storage } from "@/lib/storage";
 import { Fast, MoodEntry } from "@/lib/types";
-import { useAuth } from "./AuthContext";
+
+const FASTS_KEY = "fasting_app_fasts";
+const MOODS_KEY = "fasting_app_moods";
 
 interface FastingContextType {
   activeFast: Fast | null;
@@ -17,116 +19,95 @@ interface FastingContextType {
 
 const FastingContext = createContext<FastingContextType | undefined>(undefined);
 
+function generateId(): string {
+  return Date.now().toString(36) + Math.random().toString(36).slice(2);
+}
+
 export function FastingProvider({ children }: { children: React.ReactNode }) {
-  const { user } = useAuth();
-  const [activeFast, setActiveFast] = useState<Fast | null>(null);
-  const [pastFasts, setPastFasts] = useState<Fast[]>([]);
-  const [moodEntries, setMoodEntries] = useState<MoodEntry[]>([]);
+  const [allFasts, setAllFasts] = useState<Fast[]>([]);
+  const [allMoods, setAllMoods] = useState<MoodEntry[]>([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchFasts = useCallback(async () => {
-    if (!user) return;
-    setLoading(true);
+  const activeFast = allFasts.find((f) => f.is_active) ?? null;
+  const pastFasts = allFasts
+    .filter((f) => !f.is_active)
+    .sort((a, b) => new Date(b.ended_at ?? 0).getTime() - new Date(a.ended_at ?? 0).getTime());
+  const moodEntries = activeFast
+    ? allMoods.filter((m) => m.fast_id === activeFast.id).sort((a, b) => a.hours_into_fast - b.hours_into_fast)
+    : [];
 
-    const { data: active } = await supabase
-      .from("fasts")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .order("started_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+  const persist = useCallback(async (fasts: Fast[], moods: MoodEntry[]) => {
+    await Promise.all([
+      storage.set(FASTS_KEY, JSON.stringify(fasts)),
+      storage.set(MOODS_KEY, JSON.stringify(moods)),
+    ]);
+  }, []);
 
-    setActiveFast(active);
-
-    const { data: past } = await supabase
-      .from("fasts")
-      .select("*")
-      .eq("user_id", user.id)
-      .eq("is_active", false)
-      .order("ended_at", { ascending: false })
-      .limit(20);
-
-    setPastFasts(past ?? []);
-
-    if (active) {
-      const { data: moods } = await supabase
-        .from("mood_entries")
-        .select("*")
-        .eq("fast_id", active.id)
-        .order("hours_into_fast", { ascending: true });
-      setMoodEntries(moods ?? []);
-    } else {
-      setMoodEntries([]);
+  const loadData = useCallback(async () => {
+    try {
+      const [fastsJson, moodsJson] = await Promise.all([
+        storage.get(FASTS_KEY),
+        storage.get(MOODS_KEY),
+      ]);
+      setAllFasts(fastsJson ? JSON.parse(fastsJson) : []);
+      setAllMoods(moodsJson ? JSON.parse(moodsJson) : []);
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
-  }, [user]);
+  }, []);
 
   useEffect(() => {
-    fetchFasts();
-  }, [fetchFasts]);
+    loadData();
+  }, [loadData]);
 
   const startFast = async (targetHours: number) => {
-    if (!user) return;
-    const { data, error } = await supabase
-      .from("fasts")
-      .insert({
-        user_id: user.id,
-        target_hours: targetHours,
-        started_at: new Date().toISOString(),
-        is_active: true,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    setActiveFast(data);
-    setMoodEntries([]);
+    const newFast: Fast = {
+      id: generateId(),
+      user_id: "local",
+      started_at: new Date().toISOString(),
+      target_hours: targetHours,
+      ended_at: null,
+      is_active: true,
+      notes: null,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [...allFasts, newFast];
+    setAllFasts(updated);
+    await persist(updated, allMoods);
   };
 
   const endFast = async (notes?: string) => {
     if (!activeFast) return;
-    const { error } = await supabase
-      .from("fasts")
-      .update({
-        ended_at: new Date().toISOString(),
-        is_active: false,
-        notes,
-      })
-      .eq("id", activeFast.id);
-
-    if (error) throw error;
-
-    setPastFasts((prev) => [{ ...activeFast, ended_at: new Date().toISOString(), is_active: false, notes: notes ?? null }, ...prev]);
-    setActiveFast(null);
+    const updated = allFasts.map((f) =>
+      f.id === activeFast.id
+        ? { ...f, ended_at: new Date().toISOString(), is_active: false, notes: notes ?? null }
+        : f
+    );
+    setAllFasts(updated);
+    await persist(updated, allMoods);
   };
 
   const logMood = async (score: 1 | 2 | 3 | 4 | 5, note?: string) => {
-    if (!activeFast || !user) return;
+    if (!activeFast) return;
     const hoursIntoFast = getElapsedHours();
-
-    const { data, error } = await supabase
-      .from("mood_entries")
-      .insert({
-        fast_id: activeFast.id,
-        user_id: user.id,
-        mood_score: score,
-        note: note || null,
-        hours_into_fast: Math.round(hoursIntoFast * 100) / 100,
-      })
-      .select()
-      .single();
-
-    if (error) throw error;
-    if (data) setMoodEntries((prev) => [...prev, data]);
+    const entry: MoodEntry = {
+      id: generateId(),
+      fast_id: activeFast.id,
+      user_id: "local",
+      mood_score: score,
+      note: note ?? null,
+      hours_into_fast: Math.round(hoursIntoFast * 100) / 100,
+      created_at: new Date().toISOString(),
+    };
+    const updated = [...allMoods, entry];
+    setAllMoods(updated);
+    await persist(allFasts, updated);
   };
 
   const getElapsedHours = () => {
     if (!activeFast) return 0;
     const start = new Date(activeFast.started_at).getTime();
-    const now = Date.now();
-    return (now - start) / (1000 * 60 * 60);
+    return (Date.now() - start) / (1000 * 60 * 60);
   };
 
   return (
@@ -139,7 +120,7 @@ export function FastingProvider({ children }: { children: React.ReactNode }) {
         startFast,
         endFast,
         logMood,
-        refreshFasts: fetchFasts,
+        refreshFasts: loadData,
         getElapsedHours,
       }}
     >

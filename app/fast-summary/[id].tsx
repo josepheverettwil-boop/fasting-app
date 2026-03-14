@@ -10,7 +10,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { useLocalSearchParams, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
-import { supabase } from "@/lib/supabase";
+import { storage } from "@/lib/storage";
 import { Fast, MoodEntry } from "@/lib/types";
 import { MoodSummaryChart } from "@/components/MoodSummaryChart";
 import { Button } from "@/components/Button";
@@ -26,16 +26,15 @@ export default function FastSummaryScreen() {
 
   useEffect(() => {
     const load = async () => {
-      const [{ data: fastData }, { data: moodData }] = await Promise.all([
-        supabase.from("fasts").select("*").eq("id", id).single(),
-        supabase
-          .from("mood_entries")
-          .select("*")
-          .eq("fast_id", id)
-          .order("hours_into_fast", { ascending: true }),
+      const [fastsJson, moodsJson] = await Promise.all([
+        storage.get("fasting_app_fasts"),
+        storage.get("fasting_app_moods"),
       ]);
-      setFast(fastData);
-      setMoods(moodData ?? []);
+      const fasts: Fast[] = fastsJson ? JSON.parse(fastsJson) : [];
+      const allMoods: MoodEntry[] = moodsJson ? JSON.parse(moodsJson) : [];
+
+      setFast(fasts.find((f) => f.id === id) ?? null);
+      setMoods(allMoods.filter((m) => m.fast_id === id).sort((a, b) => a.hours_into_fast - b.hours_into_fast));
       setLoading(false);
     };
     load();
